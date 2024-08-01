@@ -6,7 +6,7 @@
 import asyncio
 import collections.abc
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import grpc
 from frequenz.channels import Broadcast, Sender
@@ -181,10 +181,14 @@ class PVManager(ComponentManager):
             tasks[component_id] = asyncio.create_task(
                 api_client.set_power(component_id, power.as_watts())
             )
+        start = datetime.now()
         _, pending = await asyncio.wait(
             tasks.values(),
             timeout=request.request_timeout.total_seconds(),
             return_when=asyncio.ALL_COMPLETED,
+        )
+        _logger.debug(
+            "Time taken for API requests to finish: %s", datetime.now() - start
         )
         # collect the timed out tasks and cancel them while keeping the
         # exceptions, so that they can be processed later.
