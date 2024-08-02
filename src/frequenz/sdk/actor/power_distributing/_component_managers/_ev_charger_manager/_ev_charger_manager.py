@@ -323,14 +323,17 @@ class EVChargerManager(ComponentManager):
         succeeded_components: set[int] = set()
         failed_power = Power.zero()
         for component_id, task in tasks.items():
-            exc = task.exception()
+            try:
+                exc = task.exception()
+            except asyncio.CancelledError as e:
+                exc = e
             if exc is not None:
                 failed_components.add(component_id)
                 failed_power += target_power_changes[component_id]
             else:
                 succeeded_components.add(component_id)
 
-            match task.exception():
+            match exc:
                 case asyncio.CancelledError():
                     _logger.warning(
                         "Timeout while setting power to EV charger %s", component_id
