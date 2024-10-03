@@ -200,7 +200,11 @@ def find_first_descendant_component(
         considering the specified root and descendant categories.
     """
     root_component = next(
-        iter(graph.components(component_categories={ComponentCategory.GRID})),
+        (
+            comp
+            for comp in graph.components()
+            if comp.category == ComponentCategory.GRID
+        ),
         None,
     )
 

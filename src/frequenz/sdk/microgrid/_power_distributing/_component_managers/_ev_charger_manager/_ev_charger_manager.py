@@ -115,7 +115,7 @@ class EVChargerManager(ComponentManager):
         return {
             evc.component_id
             for evc in connection_manager.get().component_graph.components(
-                component_categories={ComponentCategory.EV_CHARGER}
+                component_category=ComponentCategory.EV_CHARGER
             )
         }
 

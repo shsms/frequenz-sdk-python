@@ -3,7 +3,6 @@
 
 """User interface for requesting aggregated battery-inverter data."""
 
-
 import asyncio
 import uuid
 from collections.abc import Awaitable, Set
@@ -145,7 +144,7 @@ class BatteryPoolReferenceStore:  # pylint: disable=too-many-instance-attributes
             {
                 battery.component_id
                 for battery in graph.components(
-                    component_categories={ComponentCategory.BATTERY}
+                    component_category=ComponentCategory.BATTERY
                 )
             }
         )

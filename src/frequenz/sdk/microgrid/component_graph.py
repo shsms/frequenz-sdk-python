@@ -30,6 +30,7 @@ from frequenz.client.common.microgrid.components import ComponentId
 from frequenz.client.microgrid import (
     Component,
     ComponentCategory,
+    ComponentType,
     Connection,
     MicrogridApiClient,
 )
@@ -110,12 +111,14 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
 
     def components(
         self,
-        component_categories: set[ComponentCategory] | None = None,
+        component_category: ComponentCategory | None = None,
+        component_type: ComponentType | None = None,
     ) -> set[Component]:
         """Fetch the components of the microgrid.
 
         Args:
-            component_categories: The component categories that the components must match.
+            component_category: optional category of the components to fetch
+            component_type: optional type of the components to fetch
 
         Returns:
             The set of components currently connected to the microgrid, filtered by
@@ -125,8 +128,11 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
             lambda node: Component(**(node[1])), self._graph.nodes(data=True)
         )
 
-        if component_categories is not None:
-            selection = filter(lambda c: c.category in component_categories, selection)
+        if component_category is not None:
+            selection = filter(lambda c: c.category == component_category, selection)
+
+        if component_type is not None:
+            selection = filter(lambda c: c.type == component_type, selection)
 
         return set(selection)
 
@@ -475,7 +481,7 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
                 it has no successors in the graph (i.e. it is not connected to
                 anything).
         """
-        grid = list(self.components(component_categories={ComponentCategory.GRID}))
+        grid = list(self.components(component_category=ComponentCategory.GRID))
 
         if len(grid) == 0:
             # it's OK to not have a grid endpoint as long as other properties
@@ -510,7 +516,7 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
                 or zero successors.
         """
         intermediary_components = list(
-            self.components(component_categories={ComponentCategory.INVERTER})
+            self.components(component_category=ComponentCategory.INVERTER)
         )
 
         missing_predecessors = list(
@@ -537,13 +543,8 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
                 or has > 0 successors.
         """
         leaf_components = list(
-            self.components(
-                component_categories={
-                    ComponentCategory.BATTERY,
-                    ComponentCategory.EV_CHARGER,
-                }
-            )
-        )
+            self.components(component_category=ComponentCategory.BATTERY)
+        ) + list(self.components(component_category=ComponentCategory.EV_CHARGER))
 
         missing_predecessors = list(
             filter(
