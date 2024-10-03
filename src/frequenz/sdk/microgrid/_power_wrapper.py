@@ -88,9 +88,7 @@ class PowerWrapper:
         # Currently the power managing actor only supports batteries.  The below
         # constraint needs to be relaxed if the actor is extended to support other
         # components.
-        if not component_graph.components(
-            component_categories={self._component_category}
-        ):
+        if not component_graph.components(component_category=self._component_category):
             _logger.warning(
                 "No %s found in the component graph. "
                 "The power managing actor will not be started.",
@@ -121,9 +119,7 @@ class PowerWrapper:
             return
 
         component_graph = connection_manager.get().component_graph
-        if not component_graph.components(
-            component_categories={self._component_category}
-        ):
+        if not component_graph.components(component_category=self._component_category):
             _logger.warning(
                 "No %s found in the component graph. "
                 "The power distributing actor will not be started.",

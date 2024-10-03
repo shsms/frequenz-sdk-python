@@ -3,7 +3,6 @@
 
 """Manages shared state/tasks for a set of PV inverters."""
 
-
 import asyncio
 import uuid
 from collections import abc
@@ -78,7 +77,7 @@ class PVPoolReferenceStore:
                 {
                     inv.component_id
                     for inv in graph.components(
-                        component_categories={ComponentCategory.INVERTER}
+                        component_category=ComponentCategory.INVERTER
                     )
                     if inv.type == InverterType.SOLAR
                 }

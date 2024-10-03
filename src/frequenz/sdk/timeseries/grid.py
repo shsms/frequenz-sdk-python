@@ -6,6 +6,7 @@
 This module provides the `Grid` type, which represents a grid connection point
 in a microgrid.
 """
+
 from __future__ import annotations
 
 import logging
@@ -163,7 +164,7 @@ def initialize(
 
     grid_connections = list(
         connection_manager.get().component_graph.components(
-            component_categories={ComponentCategory.GRID},
+            component_category=ComponentCategory.GRID
         )
     )
 

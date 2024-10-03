@@ -92,7 +92,7 @@ class BoundsSetter:
         """
         api_client = connection_manager.get().api_client
         graph = connection_manager.get().component_graph
-        meters = graph.components(component_categories={ComponentCategory.METER})
+        meters = graph.components(component_category=ComponentCategory.METER)
         if not meters:
             err = "No meters found in the component graph."
             _logger.error(err)

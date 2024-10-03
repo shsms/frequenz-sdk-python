@@ -77,7 +77,7 @@ class EVChargerPoolReferenceStore:
                 {
                     evc.component_id
                     for evc in graph.components(
-                        component_categories={ComponentCategory.EV_CHARGER}
+                        component_category=ComponentCategory.EV_CHARGER
                     )
                 }
             )

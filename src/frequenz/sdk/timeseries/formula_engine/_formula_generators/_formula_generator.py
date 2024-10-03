@@ -118,11 +118,7 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
         """
         component_graph = connection_manager.get().component_graph
         grid_component = next(
-            iter(
-                component_graph.components(
-                    component_categories={ComponentCategory.GRID}
-                )
-            ),
+            iter(component_graph.components(component_category=ComponentCategory.GRID)),
             None,
         )
         if grid_component is None:
