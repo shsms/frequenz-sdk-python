@@ -122,32 +122,15 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
 
     def connections(
         self,
-        start: set[ComponentId] | None = None,
-        end: set[ComponentId] | None = None,
     ) -> set[Connection]:
         """Fetch the connections between microgrid components.
-
-        Args:
-            start: The component IDs that the connections' start must match.
-            end: The component IDs that the connections' end must match.
 
         Returns:
             The set of connections between components in the microgrid, filtered by
                 the provided `start`/`end` choices.
         """
-        match (start, end):
-            case (None, None):
-                selection_ids = self._graph.edges
-            case (None, _):
-                selection_ids = self._graph.in_edges(end)
-            case (_, None):
-                selection_ids = self._graph.out_edges(start)
-            case (_, _):
-                start_edges = self._graph.out_edges(start)
-                end_edges = self._graph.in_edges(end)
-                selection_ids = set(start_edges).intersection(end_edges)
-
-        return set(self._graph.edges[i][_DATA_KEY] for i in selection_ids)
+        selection = self._graph.edges
+        return set(map(lambda c: Connection(c[0], c[1]), selection))
 
     def predecessors(self, component_id: ComponentId) -> set[Component]:
         """Fetch the graph predecessors of the specified component.
