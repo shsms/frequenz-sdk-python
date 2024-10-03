@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from frequenz.client.common.microgrid import MicrogridId
 from frequenz.client.microgrid import Location, Metadata, MicrogridApiClient
 
-from .component_graph import ComponentGraph, _MicrogridComponentGraph
+from .component_graph import ComponentGraph
 
 _logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class _InsecureConnectionManager(ConnectionManager):
         self._api = MicrogridApiClient(server_url)
         # To create graph from the api we need await.
         # So create empty graph here, and update it in `run` method.
-        self._graph = _MicrogridComponentGraph()
+        self._graph = ComponentGraph()
 
         self._metadata: Metadata
         """The metadata of the microgrid."""
