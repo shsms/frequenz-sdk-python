@@ -15,6 +15,7 @@ from frequenz.client.microgrid import (
     Component,
     ComponentCategory,
     Connection,
+    InverterType,
     Location,
     Metadata,
 )
@@ -42,17 +43,23 @@ class TestMicrogridApi:
                 Component(ComponentId(4), ComponentCategory.METER),
                 Component(ComponentId(5), ComponentCategory.METER),
                 Component(ComponentId(7), ComponentCategory.METER),
-                Component(ComponentId(8), ComponentCategory.INVERTER),
+                Component(
+                    ComponentId(8), ComponentCategory.INVERTER, InverterType.BATTERY
+                ),
                 Component(ComponentId(9), ComponentCategory.BATTERY),
                 Component(ComponentId(10), ComponentCategory.METER),
-                Component(ComponentId(11), ComponentCategory.INVERTER),
+                Component(
+                    ComponentId(11), ComponentCategory.INVERTER, InverterType.BATTERY
+                ),
                 Component(ComponentId(12), ComponentCategory.BATTERY),
             ],
             [
                 Component(ComponentId(1), ComponentCategory.GRID),
                 Component(ComponentId(4), ComponentCategory.METER),
                 Component(ComponentId(7), ComponentCategory.METER),
-                Component(ComponentId(8), ComponentCategory.INVERTER),
+                Component(
+                    ComponentId(8), ComponentCategory.INVERTER, InverterType.BATTERY
+                ),
                 Component(ComponentId(9), ComponentCategory.BATTERY),
             ],
         ]

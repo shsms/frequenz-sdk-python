@@ -8,13 +8,19 @@ purpose is to provide the connection the microgrid API client and the microgrid
 component graph.
 """
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 
 from frequenz.client.common.microgrid import MicrogridId
-from frequenz.client.microgrid import Location, Metadata, MicrogridApiClient
-
-from .component_graph import ComponentGraph
+from frequenz.client.microgrid import (
+    Component,
+    Connection,
+    Location,
+    Metadata,
+    MicrogridApiClient,
+)
+from frequenz.component_graph import ComponentGraph
 
 _logger = logging.getLogger(__name__)
 
@@ -51,7 +57,7 @@ class ConnectionManager(ABC):
 
     @property
     @abstractmethod
-    def component_graph(self) -> ComponentGraph:
+    def component_graph(self) -> ComponentGraph[Component, Connection]:
         """Get component graph.
 
         Returns:
@@ -101,7 +107,7 @@ class _InsecureConnectionManager(ConnectionManager):
         self._api = MicrogridApiClient(server_url)
         # To create graph from the api we need await.
         # So create empty graph here, and update it in `run` method.
-        self._graph = ComponentGraph()
+        self._graph: ComponentGraph[Component, Connection]
 
         self._metadata: Metadata
         """The metadata of the microgrid."""
@@ -134,13 +140,28 @@ class _InsecureConnectionManager(ConnectionManager):
         return self._metadata.location
 
     @property
-    def component_graph(self) -> ComponentGraph:
+    def component_graph(self) -> ComponentGraph[Component, Connection]:
         """Get component graph.
 
         Returns:
             component graph
         """
         return self._graph
+
+    async def _fetch_components_and_connections(
+        self,
+    ) -> tuple[set[Component], set[Connection]]:
+        """Fetch components and connections from the microgrid API.
+
+        Returns:
+            A tuple containing the list of components and the list of connections.
+        """
+        (components, connections) = await asyncio.gather(
+            self._api.components(),
+            self._api.connections(),
+        )
+
+        return (set(components), set(connections))
 
     async def _update_api(self, server_url: str) -> None:
         """Update api with new host and port.
@@ -160,7 +181,7 @@ class _InsecureConnectionManager(ConnectionManager):
 
     async def _initialize(self) -> None:
         self._metadata = await self._api.metadata()
-        await self._graph.refresh_from_api(self._api)
+        self._graph = ComponentGraph(*await self._fetch_components_and_connections())
 
 
 _CONNECTION_MANAGER: ConnectionManager | None = None

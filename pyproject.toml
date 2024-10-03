@@ -33,6 +33,7 @@ dependencies = [
   "frequenz-client-common >= 0.3.2, < 0.4.0",
   "frequenz-channels >= 1.6.1, < 2.0.0",
   "frequenz-quantities[marshmallow] >= 1.0.0, < 2.0.0",
+  "component-graph-python @ git+ssh://github.com/shsms/component-graph-py.git",
   "networkx >= 2.8, < 4",
   "numpy >= 2.1.0, < 3",
   "typing_extensions >= 4.13.0, < 5",
@@ -136,6 +137,7 @@ min-similarity-lines = 40
 
 [tool.pylint.messages_control]
 disable = [
+  "no-name-in-module",
   "too-few-public-methods",
   "too-many-return-statements",
   # disabled because it conflicts with isort

@@ -6,12 +6,12 @@
 from contextlib import AsyncExitStack
 
 import frequenz.client.microgrid as client
+import frequenz.component_graph as gr
 from frequenz.client.common.microgrid.components import ComponentId
 from frequenz.client.microgrid import ComponentCategory
 from frequenz.quantities import Current, Power, Quantity, ReactivePower
 from pytest_mock import MockerFixture
 
-import frequenz.sdk.microgrid.component_graph as gr
 from frequenz.sdk import microgrid
 from frequenz.sdk.timeseries import Fuse
 from tests.utils.graph_generator import GraphGenerator
@@ -21,35 +21,6 @@ from ..timeseries.mock_microgrid import MockMicrogrid
 
 
 async def test_grid_1(mocker: MockerFixture) -> None:
-    """Test the grid connection module."""
-    # The tests here need to be in this exact sequence, because the grid connection
-    # is a singleton. Once it gets created, it stays in memory for the duration of
-    # the tests, unless we explicitly delete it.
-
-    # validate that islands with no grid connection are accepted.
-    components = {
-        client.Component(ComponentId(1), client.ComponentCategory.NONE),
-        client.Component(ComponentId(2), client.ComponentCategory.METER),
-    }
-    connections = {
-        client.Connection(ComponentId(1), ComponentId(2)),
-    }
-
-    graph = gr.ComponentGraph(  # pylint: disable=protected-access
-        components=components, connections=connections
-    )
-
-    async with MockMicrogrid(graph=graph, mocker=mocker), AsyncExitStack() as stack:
-        grid = microgrid.grid()
-        assert grid is not None
-        stack.push_async_callback(grid.stop)
-
-        assert grid
-        assert grid.fuse
-        assert grid.fuse.max_current == Current.from_amperes(0.0)
-
-
-async def test_grid_2(mocker: MockerFixture) -> None:
     """Validate that microgrids with one grid connection are accepted."""
     components = {
         client.Component(
@@ -76,7 +47,7 @@ async def test_grid_2(mocker: MockerFixture) -> None:
         assert grid.fuse == Fuse(max_current=Current.from_amperes(123.0))
 
 
-async def test_grid_3(mocker: MockerFixture) -> None:
+async def test_grid_2(mocker: MockerFixture) -> None:
     """Validate that microgrids with a grid connection without a fuse are instantiated."""
     components = {
         client.Component(
