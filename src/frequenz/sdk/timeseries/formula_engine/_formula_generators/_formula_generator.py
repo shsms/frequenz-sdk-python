@@ -251,9 +251,9 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
 
         # fmt: off
         return (
-            is_pv_inverter(fallback) and graph.is_pv_meter(primary)
-            or is_chp(fallback) and graph.is_chp_meter(primary)
-            or is_ev_charger(fallback) and graph.is_ev_charger_meter(primary)
-            or is_battery_inverter(fallback) and graph.is_battery_meter(primary)
+            is_pv_inverter(fallback) and graph.is_pv_meter(primary.component_id)
+            or is_chp(fallback) and graph.is_chp_meter(primary.component_id)
+            or is_ev_charger(fallback) and graph.is_ev_charger_meter(primary.component_id)
+            or is_battery_inverter(fallback) and graph.is_battery_meter(primary.component_id)
         )
         # fmt: on

@@ -12,13 +12,13 @@ from datetime import timedelta
 from typing import AsyncIterator
 
 from frequenz.channels import Sender
-from frequenz.client.microgrid import ComponentCategory
+from frequenz.client.microgrid import Component, ComponentCategory, Connection
+from frequenz.component_graph import ComponentGraph
 from pytest_mock import MockerFixture
 
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import ResamplerConfig
 from frequenz.sdk.microgrid._power_distributing import ComponentPoolStatus
-from frequenz.sdk.microgrid.component_graph import ComponentGraph
 
 from ..timeseries.mock_microgrid import MockMicrogrid
 from ..utils.component_data_streamer import MockComponentDataStreamer
@@ -42,7 +42,7 @@ class _Mocks:
         cls,
         component_category: ComponentCategory,
         mocker: MockerFixture,
-        graph: ComponentGraph | None = None,
+        graph: ComponentGraph[Component, Connection] | None = None,
         grid_meter: bool | None = None,
     ) -> _Mocks:
         """Initialize the mocks."""
@@ -95,7 +95,7 @@ async def _mocks(
     mocker: MockerFixture,
     component_category: ComponentCategory,
     *,
-    graph: ComponentGraph | None = None,
+    graph: ComponentGraph[Component, Connection] | None = None,
     grid_meter: bool | None = None,
 ) -> AsyncIterator[_Mocks]:
     """Initialize the mocks."""

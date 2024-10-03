@@ -49,10 +49,10 @@ class ConsumerPowerFormula(FormulaGenerator[Power]):
         component_graph = connection_manager.get().component_graph
         return all(
             successor.category == ComponentCategory.METER
-            and not component_graph.is_battery_meter(successor)
-            and not component_graph.is_chp_meter(successor)
-            and not component_graph.is_pv_meter(successor)
-            and not component_graph.is_ev_charger_meter(successor)
+            and not component_graph.is_battery_meter(successor.component_id)
+            and not component_graph.is_chp_meter(successor.component_id)
+            and not component_graph.is_pv_meter(successor.component_id)
+            and not component_graph.is_ev_charger_meter(successor.component_id)
             for successor in grid_successors
         )
 

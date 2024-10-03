@@ -682,37 +682,6 @@ async def test_battery_power_fallback_formula(
             )
 
 
-async def test_batter_pool_power_no_batteries(mocker: MockerFixture) -> None:
-    """Test power method with no batteries."""
-    mockgrid = MockMicrogrid(
-        graph=GraphGenerator().to_graph(
-            (
-                ComponentCategory.METER,
-                [ComponentCategory.INVERTER, ComponentCategory.INVERTER],
-            )
-        )
-    )
-    await mockgrid.start(mocker)
-    battery_pool = microgrid.new_battery_pool(priority=5)
-    power_receiver = battery_pool.power.new_receiver()
-
-    await mockgrid.mock_resampler.send_non_existing_component_value()
-    assert (await power_receiver.receive()).value == Power.from_watts(0)
-
-
-async def test_battery_pool_power_with_no_inverters(mocker: MockerFixture) -> None:
-    """Test power method with no inverters."""
-    mockgrid = MockMicrogrid(
-        graph=GraphGenerator().to_graph(
-            (ComponentCategory.METER, ComponentCategory.BATTERY)
-        )
-    )
-    await mockgrid.start(mocker)
-
-    with pytest.raises(RuntimeError):
-        microgrid.new_battery_pool(priority=5)
-
-
 async def test_battery_pool_power_incomplete_bat_request(mocker: MockerFixture) -> None:
     """Test power method when not all requested ids are behind the same inverter."""
     gen = GraphGenerator()

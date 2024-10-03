@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Iterable
+from typing import Callable, Iterable
 
-from frequenz.client.microgrid import Component, ComponentCategory, InverterType
-
-if TYPE_CHECKING:
-    from ..microgrid.component_graph import ComponentGraph
+from frequenz.client.microgrid import (
+    Component,
+    ComponentCategory,
+    Connection,
+    InverterType,
+)
+from frequenz.component_graph import ComponentGraph
 
 
 def is_pv_inverter(component: Component) -> bool:
@@ -67,7 +70,9 @@ def is_ev_charger(component: Component) -> bool:
     return component.category == ComponentCategory.EV_CHARGER
 
 
-def is_battery_chain(graph: ComponentGraph, component: Component) -> bool:
+def is_battery_chain(
+    graph: ComponentGraph[Component, Connection], component: Component
+) -> bool:
     """Check if the specified component is part of a battery chain.
 
     A component is part of a battery chain if it is either a battery inverter or a
@@ -80,10 +85,14 @@ def is_battery_chain(graph: ComponentGraph, component: Component) -> bool:
     Returns:
         Whether the specified component is part of a battery chain.
     """
-    return is_battery_inverter(component) or graph.is_battery_meter(component)
+    return is_battery_inverter(component) or graph.is_battery_meter(
+        component.component_id
+    )
 
 
-def is_pv_chain(graph: ComponentGraph, component: Component) -> bool:
+def is_pv_chain(
+    graph: ComponentGraph[Component, Connection], component: Component
+) -> bool:
     """Check if the specified component is part of a PV chain.
 
     A component is part of a PV chain if it is either a PV inverter or a PV
@@ -96,10 +105,12 @@ def is_pv_chain(graph: ComponentGraph, component: Component) -> bool:
     Returns:
         Whether the specified component is part of a PV chain.
     """
-    return is_pv_inverter(component) or graph.is_pv_meter(component)
+    return is_pv_inverter(component) or graph.is_pv_meter(component.component_id)
 
 
-def is_ev_charger_chain(graph: ComponentGraph, component: Component) -> bool:
+def is_ev_charger_chain(
+    graph: ComponentGraph[Component, Connection], component: Component
+) -> bool:
     """Check if the specified component is part of an EV charger chain.
 
     A component is part of an EV charger chain if it is either an EV charger or an
@@ -112,10 +123,12 @@ def is_ev_charger_chain(graph: ComponentGraph, component: Component) -> bool:
     Returns:
         Whether the specified component is part of an EV charger chain.
     """
-    return is_ev_charger(component) or graph.is_ev_charger_meter(component)
+    return is_ev_charger(component) or graph.is_ev_charger_meter(component.component_id)
 
 
-def is_chp_chain(graph: ComponentGraph, component: Component) -> bool:
+def is_chp_chain(
+    graph: ComponentGraph[Component, Connection], component: Component
+) -> bool:
     """Check if the specified component is part of a CHP chain.
 
     A component is part of a CHP chain if it is either a CHP or a CHP meter.
@@ -127,11 +140,11 @@ def is_chp_chain(graph: ComponentGraph, component: Component) -> bool:
     Returns:
         Whether the specified component is part of a CHP chain.
     """
-    return is_chp(component) or graph.is_chp_meter(component)
+    return is_chp(component) or graph.is_chp_meter(component.component_id)
 
 
 def dfs(
-    graph: ComponentGraph,
+    graph: ComponentGraph[Component, Connection],
     current_node: Component,
     visited: set[Component],
     condition: Callable[[Component], bool],
@@ -169,7 +182,7 @@ def dfs(
 
 
 def find_first_descendant_component(
-    graph: ComponentGraph,
+    graph: ComponentGraph[Component, Connection],
     *,
     root_category: ComponentCategory,
     descendant_categories: Iterable[ComponentCategory],

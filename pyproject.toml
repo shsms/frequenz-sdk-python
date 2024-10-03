@@ -31,7 +31,7 @@ dependencies = [
   # (plugins.mkdocstrings.handlers.python.import)
   "frequenz-client-microgrid >= 0.5.1, < 0.6.0",
   "frequenz-channels >= 1.1.0, < 2.0.0",
-  "networkx >= 2.8, < 4",
+  "component-graph-python @ git+ssh://github.com/shsms/component-graph-py.git",
   "numpy >= 1.26.4, < 2",
   "typing_extensions >= 4.6.1, < 5",
 ]
@@ -132,6 +132,7 @@ min-similarity-lines = 40
 
 [tool.pylint.messages_control]
 disable = [
+  "no-name-in-module",
   "too-few-public-methods",
   "too-many-return-statements",
   # disabled because it conflicts with isort
