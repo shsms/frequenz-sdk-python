@@ -90,15 +90,30 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
         self.refresh_from(components, connections)
         self.validate()
 
+    def component(self, component_id: int) -> Component:
+        """Fetch the component with the specified ID.
+
+        Args:
+            component_id: numerical ID of the component to fetch
+
+        Returns:
+            The component with the specified ID.
+
+        Raises:
+            KeyError: if the specified `component_id` is not in the graph
+        """
+        if component_id not in self._graph:
+            raise KeyError(f"Component {component_id} not in graph!")
+
+        return Component(**self._graph.nodes[component_id])
+
     def components(
         self,
-        component_ids: set[int] | None = None,
         component_categories: set[ComponentCategory] | None = None,
     ) -> set[Component]:
         """Fetch the components of the microgrid.
 
         Args:
-            component_ids: filter out any components not matching one of the provided IDs
             component_categories: filter out any components not matching one of the
                 provided types
 
@@ -106,14 +121,9 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
             Set of the components currently connected to the microgrid, filtered by
                 the provided `component_ids` and `component_categories` values.
         """
-        if component_ids is None:
-            # If any node has not node[1], then it will not pass validations step.
-            selection: Iterable[Component] = map(
-                lambda node: Component(**(node[1])), self._graph.nodes(data=True)
-            )
-        else:
-            valid_ids = filter(self._graph.has_node, component_ids)
-            selection = map(lambda idx: Component(**self._graph.nodes[idx]), valid_ids)
+        selection: Iterable[Component] = map(
+            lambda node: Component(**(node[1])), self._graph.nodes(data=True)
+        )
 
         if component_categories is not None:
             types: set[ComponentCategory] = component_categories
