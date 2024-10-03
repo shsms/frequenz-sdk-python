@@ -2,6 +2,7 @@
 # Copyright © 2023 Frequenz Energy-as-a-Service GmbH
 
 """Mock microgrid definition."""
+
 from functools import partial
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -21,10 +22,7 @@ from frequenz.client.microgrid import (
 from pytest_mock import MockerFixture
 
 from frequenz.sdk._internal._constants import RECEIVER_MAX_SIZE
-from frequenz.sdk.microgrid.component_graph import (
-    ComponentGraph,
-    _MicrogridComponentGraph,
-)
+from frequenz.sdk.microgrid.component_graph import ComponentGraph
 from frequenz.sdk.microgrid.connection_manager import ConnectionManager
 
 
@@ -52,7 +50,7 @@ class MockMicrogridClient:
             microgrid_id: the ID of the microgrid
             location: the location of the microgrid
         """
-        self._component_graph = _MicrogridComponentGraph(components, connections)
+        self._component_graph = ComponentGraph(components, connections)
 
         self._components = components
 

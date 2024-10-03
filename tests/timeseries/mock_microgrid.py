@@ -27,7 +27,7 @@ from frequenz.sdk import microgrid
 from frequenz.sdk._internal._asyncio import cancel_and_await
 from frequenz.sdk.actor import ResamplerConfig
 from frequenz.sdk.microgrid import _data_pipeline
-from frequenz.sdk.microgrid.component_graph import _MicrogridComponentGraph
+from frequenz.sdk.microgrid.component_graph import ComponentGraph
 
 from ..utils import MockMicrogridClient
 from ..utils.component_data_wrapper import (
@@ -62,7 +62,7 @@ class MockMicrogrid:  # pylint: disable=too-many-instance-attributes
         sample_rate_s: float = 0.01,
         num_namespaces: int = 1,
         fuse: Fuse | None = Fuse(10_000.0),
-        graph: _MicrogridComponentGraph | None = None,
+        graph: ComponentGraph | None = None,
         mocker: MockerFixture | None = None,
     ):
         """Create a new instance.

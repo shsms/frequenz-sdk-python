@@ -24,7 +24,6 @@ flow of power.
 import asyncio
 import dataclasses
 import logging
-from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from dataclasses import asdict
 
@@ -46,304 +45,7 @@ class InvalidGraphError(Exception):
     """Exception type that will be thrown if graph data is not valid."""
 
 
-class ComponentGraph(ABC):
-    """Interface for component graph implementations."""
-
-    @abstractmethod
-    def components(
-        self,
-        component_ids: set[int] | None = None,
-        component_categories: set[ComponentCategory] | None = None,
-    ) -> set[Component]:
-        """Fetch the components of the microgrid.
-
-        Args:
-            component_ids: filter out any components not matching one of the provided IDs
-            component_categories: filter out any components not matching one of the
-                provided types
-
-        Returns:
-            Set of the components currently connected to the microgrid, filtered by
-                the provided `component_ids` and `component_categories` values.
-        """
-
-    @abstractmethod
-    def connections(
-        self,
-        start: set[int] | None = None,
-        end: set[int] | None = None,
-    ) -> set[Connection]:
-        """Fetch the connections between microgrid components.
-
-        Args:
-            start: filter out any connections whose `start` does not match one of these
-                component IDs
-            end: filter out any connections whose `end` does not match one of these
-                component IDs
-
-        Returns:
-            Set of the connections between components in the microgrid, filtered by
-                the provided `start`/`end` choices.
-        """
-
-    @abstractmethod
-    def predecessors(self, component_id: int) -> set[Component]:
-        """Fetch the graph predecessors of the specified component.
-
-        Args:
-            component_id: numerical ID of the component whose predecessors should be
-                fetched
-
-        Returns:
-            Set of IDs of the components that are predecessors of `component_id`,
-                i.e. for which there is a connection from each of these components to
-                `component_id`.
-
-        Raises:
-            KeyError: if the specified `component_id` is not in the graph
-        """
-
-    @abstractmethod
-    def successors(self, component_id: int) -> set[Component]:
-        """Fetch the graph successors of the specified component.
-
-        Args:
-            component_id: numerical ID of the component whose successors should be
-                fetched
-
-        Returns:
-            Set of IDs of the components that are successors of `component_id`,
-                i.e. for which there is a connection from `component_id` to each of
-                these components.
-
-        Raises:
-            KeyError: if the specified `component_id` is not in the graph
-        """
-
-    @abstractmethod
-    def is_grid_meter(self, component: Component) -> bool:
-        """Check if the specified component is a grid meter.
-
-        This is done by checking if the component is the only successor to the `Grid`
-        component.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is a grid meter.
-        """
-
-    @abstractmethod
-    def is_pv_inverter(self, component: Component) -> bool:
-        """Check if the specified component is a PV inverter.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is a PV inverter.
-        """
-
-    @abstractmethod
-    def is_pv_meter(self, component: Component) -> bool:
-        """Check if the specified component is a PV meter.
-
-        This is done by checking if the component has only PV inverters as its
-        successors.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is a PV meter.
-        """
-
-    @abstractmethod
-    def is_pv_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of a PV chain.
-
-        A component is part of a PV chain if it is a PV meter or a PV inverter.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is part of a PV chain.
-        """
-
-    @abstractmethod
-    def is_battery_inverter(self, component: Component) -> bool:
-        """Check if the specified component is a battery inverter.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is a battery inverter.
-        """
-
-    @abstractmethod
-    def is_battery_meter(self, component: Component) -> bool:
-        """Check if the specified component is a battery meter.
-
-        This is done by checking if the component has only battery inverters as its
-        predecessors.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is a battery meter.
-        """
-
-    @abstractmethod
-    def is_battery_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of a battery chain.
-
-        A component is part of a battery chain if it is a battery meter or a battery
-        inverter.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is part of a battery chain.
-        """
-
-    @abstractmethod
-    def is_ev_charger(self, component: Component) -> bool:
-        """Check if the specified component is an EV charger.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is an EV charger.
-        """
-
-    @abstractmethod
-    def is_ev_charger_meter(self, component: Component) -> bool:
-        """Check if the specified component is an EV charger meter.
-
-        This is done by checking if the component has only EV chargers as its
-        successors.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is an EV charger meter.
-        """
-
-    @abstractmethod
-    def is_ev_charger_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of an EV charger chain.
-
-        A component is part of an EV charger chain if it is an EV charger meter or an
-        EV charger.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is part of an EV charger chain.
-        """
-
-    @abstractmethod
-    def is_chp(self, component: Component) -> bool:
-        """Check if the specified component is a CHP.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is a CHP.
-        """
-
-    @abstractmethod
-    def is_chp_meter(self, component: Component) -> bool:
-        """Check if the specified component is a CHP meter.
-
-        This is done by checking if the component has only CHPs as its successors.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is a CHP meter.
-        """
-
-    @abstractmethod
-    def is_chp_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of a CHP chain.
-
-        A component is part of a CHP chain if it is a CHP meter or a CHP.
-
-        Args:
-            component: component to check.
-
-        Returns:
-            Whether the specified component is part of a CHP chain.
-        """
-
-    @abstractmethod
-    def dfs(
-        self,
-        current_node: Component,
-        visited: set[Component],
-        condition: Callable[[Component], bool],
-    ) -> set[Component]:
-        """
-        Search for components that fulfill the condition in the Graph.
-
-        DFS is used for searching the graph. The graph traversal is stopped
-        once a component fulfills the condition.
-
-        Args:
-            current_node: The current node to search from.
-            visited: The set of visited nodes.
-            condition: The condition function to check for.
-
-        Returns:
-            A set of component ids where the corresponding components fulfill
-            the condition function.
-        """
-
-    @abstractmethod
-    def find_first_descendant_component(
-        self,
-        *,
-        root_category: ComponentCategory,
-        descendant_categories: Iterable[ComponentCategory],
-    ) -> Component:
-        """Find the first descendant component given root and descendant categories.
-
-        This method searches for the root component within the provided root
-        category. If multiple components share the same root category, the
-        first found one is considered as the root component.
-
-        Subsequently, it looks for the first descendant component from the root
-        component, considering only the immediate descendants.
-
-        The priority of the component to search for is determined by the order
-        of the descendant categories, with the first category having the
-        highest priority.
-
-        Args:
-            root_category: The category of the root component to search for.
-            descendant_categories: The descendant categories to search for the
-                first descendant component in.
-
-        Returns:
-            The first descendant component found in the component graph,
-            considering the specified root and descendant categories.
-        """
-
-
-class _MicrogridComponentGraph(
-    ComponentGraph
-):  # pylint: disable=too-many-public-methods
+class ComponentGraph:  # pylint: disable=too-many-public-methods
     """ComponentGraph implementation designed to work with the microgrid API.
 
     For internal-only use of the `microgrid` package.
@@ -498,7 +200,7 @@ class _MicrogridComponentGraph(
         self,
         components: set[Component],
         connections: set[Connection],
-        correct_errors: Callable[["_MicrogridComponentGraph"], None] | None = None,
+        correct_errors: Callable[["ComponentGraph"], None] | None = None,
     ) -> None:
         """Refresh the graph from the provided list of components and connections.
 
@@ -532,7 +234,7 @@ class _MicrogridComponentGraph(
 
         # check if we can construct a valid ComponentGraph
         # from the new NetworkX graph data
-        _provisional = _MicrogridComponentGraph()
+        _provisional = ComponentGraph()
         _provisional._graph = new_graph  # pylint: disable=protected-access
         if correct_errors is not None:
             try:
@@ -556,7 +258,7 @@ class _MicrogridComponentGraph(
     async def refresh_from_api(
         self,
         api: ApiClient,
-        correct_errors: Callable[["_MicrogridComponentGraph"], None] | None = None,
+        correct_errors: Callable[["ComponentGraph"], None] | None = None,
     ) -> None:
         """Refresh the contents of a component graph from the remote API.
 
@@ -1067,7 +769,7 @@ class _MicrogridComponentGraph(
             )
 
 
-def _correct_graph_errors(graph: _MicrogridComponentGraph) -> None:
+def _correct_graph_errors(graph: ComponentGraph) -> None:
     """Attempt to correct errors in component graph data.
 
     For now, this handles just the special case of graph data that is missing an
