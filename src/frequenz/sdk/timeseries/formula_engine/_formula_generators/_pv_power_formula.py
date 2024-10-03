@@ -7,6 +7,7 @@ import logging
 
 from frequenz.client.microgrid import Component, ComponentCategory, ComponentMetricId
 
+from ...._internal._graph_traversal import dfs, is_pv_chain
 from ....microgrid import connection_manager
 from ..._quantities import Power
 from .._formula_engine import FormulaEngine
@@ -47,10 +48,11 @@ class PVPowerFormula(FormulaGenerator[Power]):
         if component_ids:
             pv_components = component_graph.components(set(component_ids))
         else:
-            pv_components = component_graph.dfs(
+            pv_components = dfs(
+                component_graph,
                 self._get_grid_component(),
                 set(),
-                component_graph.is_pv_chain,
+                lambda x: is_pv_chain(component_graph, x),
             )
 
         if not pv_components:

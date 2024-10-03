@@ -17,6 +17,7 @@ from frequenz.channels import Receiver, Sender
 from frequenz.client.microgrid import Component, ComponentCategory, ComponentMetricId
 
 from .._internal._channels import ChannelRegistry
+from .._internal._graph_traversal import find_first_descendant_component
 from ..timeseries._base_types import Sample, Sample3Phase
 from ..timeseries._quantities import Quantity, Voltage
 
@@ -80,7 +81,8 @@ class VoltageStreamer:
 
         if not source_component:
             component_graph = connection_manager.get().component_graph
-            source_component = component_graph.find_first_descendant_component(
+            source_component = find_first_descendant_component(
+                component_graph,
                 root_category=ComponentCategory.GRID,
                 descendant_categories=[
                     ComponentCategory.METER,

@@ -16,6 +16,12 @@ from frequenz.channels import Sender
 from frequenz.client.microgrid import Component, ComponentCategory, ComponentMetricId
 
 from ...._internal._channels import ChannelRegistry
+from ...._internal._graph_traversal import (
+    is_battery_inverter,
+    is_chp,
+    is_ev_charger,
+    is_pv_inverter,
+)
 from ....microgrid import connection_manager
 from ....microgrid._data_sourcing import ComponentMetricRequest
 from ..._quantities import QuantityT
@@ -215,10 +221,10 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
 
         # All fallbacks has to be of the same type and category.
         if (
-            all(graph.is_chp(c) for c in successors)
-            or all(graph.is_pv_inverter(c) for c in successors)
-            or all(graph.is_battery_inverter(c) for c in successors)
-            or all(graph.is_ev_charger(c) for c in successors)
+            all(is_chp(c) for c in successors)
+            or all(is_pv_inverter(c) for c in successors)
+            or all(is_battery_inverter(c) for c in successors)
+            or all(is_ev_charger(c) for c in successors)
         ):
             return successors
         return set()
@@ -249,9 +255,9 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
 
         # fmt: off
         return (
-            graph.is_pv_inverter(fallback) and graph.is_pv_meter(primary)
-            or graph.is_chp(fallback) and graph.is_chp_meter(primary)
-            or graph.is_ev_charger(fallback) and graph.is_ev_charger_meter(primary)
-            or graph.is_battery_inverter(fallback) and graph.is_battery_meter(primary)
+            is_pv_inverter(fallback) and graph.is_pv_meter(primary)
+            or is_chp(fallback) and graph.is_chp_meter(primary)
+            or is_ev_charger(fallback) and graph.is_ev_charger_meter(primary)
+            or is_battery_inverter(fallback) and graph.is_battery_meter(primary)
         )
         # fmt: on
