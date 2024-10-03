@@ -14,6 +14,7 @@ from frequenz.client.microgrid import Component, ComponentCategory, ComponentMet
 from frequenz.quantities import Frequency, Quantity
 
 from .._internal._channels import ChannelRegistry
+from .._internal._graph_traversal import find_first_descendant_component
 from ..microgrid import connection_manager
 from ..microgrid._data_sourcing import ComponentMetricRequest
 from ..timeseries._base_types import Sample
@@ -53,7 +54,8 @@ class GridFrequency:
         """
         if not source:
             component_graph = connection_manager.get().component_graph
-            source = component_graph.find_first_descendant_component(
+            source = find_first_descendant_component(
+                component_graph,
                 descendant_categories=(
                     ComponentCategory.METER,
                     ComponentCategory.INVERTER,

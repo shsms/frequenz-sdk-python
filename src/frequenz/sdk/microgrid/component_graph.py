@@ -31,8 +31,14 @@ from frequenz.client.microgrid import (
     Component,
     ComponentCategory,
     Connection,
-    InverterType,
     MicrogridApiClient,
+)
+
+from .._internal._graph_traversal import (
+    is_battery_inverter,
+    is_chp,
+    is_ev_charger,
+    is_pv_inverter,
 )
 
 _logger = logging.getLogger(__name__)
@@ -306,20 +312,6 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
         grid_successors = self.successors(predecessor.component_id)
         return len(grid_successors) == 1
 
-    def is_pv_inverter(self, component: Component) -> bool:
-        """Check if the specified component is a PV inverter.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is a PV inverter.
-        """
-        return (
-            component.category == ComponentCategory.INVERTER
-            and component.type == InverterType.SOLAR
-        )
-
     def is_pv_meter(self, component: Component) -> bool:
         """Check if the specified component is a PV meter.
 
@@ -338,35 +330,10 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
             and not self.is_grid_meter(component)
             and len(successors) > 0
             and all(
-                self.is_pv_inverter(successor)
+                is_pv_inverter(successor)
                 for successor in self.successors(component.component_id)
             )
         )
-
-    def is_pv_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of a PV chain.
-
-        A component is part of a PV chain if it is either a PV inverter or a PV
-        meter.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is part of a PV chain.
-        """
-        return self.is_pv_inverter(component) or self.is_pv_meter(component)
-
-    def is_ev_charger(self, component: Component) -> bool:
-        """Check if the specified component is an EV charger.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is an EV charger.
-        """
-        return component.category == ComponentCategory.EV_CHARGER
 
     def is_ev_charger_meter(self, component: Component) -> bool:
         """Check if the specified component is an EV charger meter.
@@ -385,35 +352,7 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
             component.category == ComponentCategory.METER
             and not self.is_grid_meter(component)
             and len(successors) > 0
-            and all(self.is_ev_charger(successor) for successor in successors)
-        )
-
-    def is_ev_charger_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of an EV charger chain.
-
-        A component is part of an EV charger chain if it is either an EV charger or an
-        EV charger meter.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is part of an EV charger chain.
-        """
-        return self.is_ev_charger(component) or self.is_ev_charger_meter(component)
-
-    def is_battery_inverter(self, component: Component) -> bool:
-        """Check if the specified component is a battery inverter.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is a battery inverter.
-        """
-        return (
-            component.category == ComponentCategory.INVERTER
-            and component.type == InverterType.BATTERY
+            and all(is_ev_charger(successor) for successor in successors)
         )
 
     def is_battery_meter(self, component: Component) -> bool:
@@ -433,33 +372,8 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
             component.category == ComponentCategory.METER
             and not self.is_grid_meter(component)
             and len(successors) > 0
-            and all(self.is_battery_inverter(successor) for successor in successors)
+            and all(is_battery_inverter(successor) for successor in successors)
         )
-
-    def is_battery_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of a battery chain.
-
-        A component is part of a battery chain if it is either a battery inverter or a
-        battery meter.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is part of a battery chain.
-        """
-        return self.is_battery_inverter(component) or self.is_battery_meter(component)
-
-    def is_chp(self, component: Component) -> bool:
-        """Check if the specified component is a CHP.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is a CHP.
-        """
-        return component.category == ComponentCategory.CHP
 
     def is_chp_meter(self, component: Component) -> bool:
         """Check if the specified component is a CHP meter.
@@ -478,115 +392,8 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
             component.category == ComponentCategory.METER
             and not self.is_grid_meter(component)
             and len(successors) > 0
-            and all(self.is_chp(successor) for successor in successors)
+            and all(is_chp(successor) for successor in successors)
         )
-
-    def is_chp_chain(self, component: Component) -> bool:
-        """Check if the specified component is part of a CHP chain.
-
-        A component is part of a CHP chain if it is either a CHP or a CHP meter.
-
-        Args:
-            component: The component to check.
-
-        Returns:
-            Whether the specified component is part of a CHP chain.
-        """
-        return self.is_chp(component) or self.is_chp_meter(component)
-
-    def dfs(
-        self,
-        current_node: Component,
-        visited: set[Component],
-        condition: Callable[[Component], bool],
-    ) -> set[Component]:
-        """Search for components that fulfill the condition in the Graph.
-
-        DFS is used for searching the graph. The graph traversal is stopped
-        once a component fulfills the condition.
-
-        Args:
-            current_node: The current node to search from.
-            visited: The set of visited nodes.
-            condition: The condition function to check for.
-
-        Returns:
-            A set of component IDs where the corresponding components fulfill
-            the condition function.
-        """
-        if current_node in visited:
-            return set()
-
-        visited.add(current_node)
-
-        if condition(current_node):
-            return {current_node}
-
-        component: set[Component] = set()
-
-        for successor in self.successors(current_node.component_id):
-            component.update(self.dfs(successor, visited, condition))
-
-        return component
-
-    def find_first_descendant_component(
-        self,
-        *,
-        descendant_categories: Iterable[ComponentCategory],
-    ) -> Component:
-        """Find the first descendant component given root and descendant categories.
-
-        This method looks for the first descendant component from the GRID
-        component, considering only the immediate descendants.
-
-        The priority of the component to search for is determined by the order
-        of the descendant categories, with the first category having the
-        highest priority.
-
-        Args:
-            descendant_categories: The descendant classes to search for the first
-                descendant component in.
-
-        Returns:
-            The first descendant component found in the component graph,
-                considering the specified `descendants` categories.
-
-        Raises:
-            InvalidGraphError: When no GRID component is found in the graph.
-            ValueError: When no component is found in the given categories.
-        """
-        root_component = next(
-            (
-                comp
-                for comp in self.components(
-                    component_categories={ComponentCategory.GRID}
-                )
-            ),
-            None,
-        )
-        if root_component is None:
-            raise InvalidGraphError("No GRID component found in the component graph!")
-
-        # Sort by component ID to ensure consistent results.
-        successors = sorted(
-            self.successors(root_component.component_id),
-            key=lambda comp: comp.component_id,
-        )
-
-        def find_component(component_category: ComponentCategory) -> Component | None:
-            return next(
-                (comp for comp in successors if comp.category == component_category),
-                None,
-            )
-
-        # Find the first component that matches the given descendant categories
-        # in the order of the categories list.
-        component = next(filter(None, map(find_component, descendant_categories)), None)
-
-        if component is None:
-            raise ValueError("Component not found in any of the descendant categories.")
-
-        return component
 
     def _validate_graph(self) -> None:
         """Check that the underlying graph data is valid.

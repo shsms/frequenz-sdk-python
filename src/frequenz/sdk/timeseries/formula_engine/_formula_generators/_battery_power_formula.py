@@ -9,6 +9,7 @@ import logging
 from frequenz.client.microgrid import Component, ComponentCategory, ComponentMetricId
 from frequenz.quantities import Power
 
+from ...._internal._graph_traversal import is_battery_inverter
 from ....microgrid import connection_manager
 from ...formula_engine import FormulaEngine
 from ._fallback_formula_metric_fetcher import FallbackFormulaMetricFetcher
@@ -72,7 +73,7 @@ class BatteryPowerFormula(FormulaGenerator[Power]):
         for bat_id in component_ids:
             inverters = set(
                 filter(
-                    component_graph.is_battery_inverter,
+                    is_battery_inverter,
                     component_graph.predecessors(bat_id),
                 )
             )
