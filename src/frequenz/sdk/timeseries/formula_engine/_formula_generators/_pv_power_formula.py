@@ -46,7 +46,7 @@ class PVPowerFormula(FormulaGenerator[Power]):
         component_graph = connection_manager.get().component_graph
         component_ids = self._config.component_ids
         if component_ids:
-            pv_components = component_graph.components(set(component_ids))
+            pv_components = {component_graph.component(cid) for cid in component_ids}
         else:
             pv_components = dfs(
                 component_graph,

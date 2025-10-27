@@ -91,28 +91,38 @@ class ComponentGraph:  # pylint: disable=too-many-public-methods
         self.refresh_from(components, connections)
         self.validate()
 
+    def component(self, component_id: ComponentId) -> Component:
+        """Fetch the component with the specified ID.
+
+        Args:
+            component_id: numerical ID of the component to fetch
+
+        Returns:
+            The component with the specified ID.
+
+        Raises:
+            KeyError: if the specified `component_id` is not in the graph
+        """
+        if component_id not in self._graph:
+            raise KeyError(f"Component {component_id} not in graph!")
+
+        return Component(**self._graph.nodes[component_id])
+
     def components(
         self,
-        component_ids: set[ComponentId] | None = None,
         component_categories: set[ComponentCategory] | None = None,
     ) -> set[Component]:
         """Fetch the components of the microgrid.
 
         Args:
-            component_ids: The component IDs that the components must match.
             component_categories: The component categories that the components must match.
 
         Returns:
             The set of components currently connected to the microgrid, filtered by
                 the provided `component_ids` and `component_categories` values.
         """
-        selection_ids = (
-            self._graph.nodes
-            if component_ids is None
-            else component_ids & self._graph.nodes
-        )
-        selection: Iterable[Component] = (
-            self._graph.nodes[i][_DATA_KEY] for i in selection_ids
+        selection: Iterable[Component] = map(
+            lambda node: Component(**(node[1])), self._graph.nodes(data=True)
         )
 
         if component_categories is not None:
