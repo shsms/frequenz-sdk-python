@@ -21,7 +21,7 @@ from ...microgrid._data_sourcing import ComponentMetricRequest
 from ...microgrid._power_distributing import Result
 from ...microgrid._power_distributing._component_status import ComponentPoolStatus
 from ...microgrid._power_managing._base_classes import Proposal, ReportRequest
-from ..formula_engine._formula_engine_pool import FormulaEnginePool
+from ..formulas._formula_pool import FormulaPool
 from ._methods import MetricAggregator
 
 
@@ -117,7 +117,7 @@ class BatteryPoolReferenceStore:  # pylint: disable=too-many-instance-attributes
         self._power_dist_results_fetcher: ReceiverFetcher[Result] = (
             power_distribution_results_fetcher
         )
-        self._formula_pool: FormulaEnginePool = FormulaEnginePool(
+        self._formula_pool: FormulaPool = FormulaPool(
             self._namespace,
             self._channel_registry,
             resampler_subscription_sender,
@@ -128,7 +128,7 @@ class BatteryPoolReferenceStore:  # pylint: disable=too-many-instance-attributes
         tasks_to_stop: list[Awaitable[Any]] = [
             method.stop() for method in self._active_methods.values()
         ]
-        tasks_to_stop.append(self._formula_pool.stop())
+        # tasks_to_stop.append(self._formula_pool.stop())
         if self._update_battery_status_task:
             tasks_to_stop.append(cancel_and_await(self._update_battery_status_task))
         await asyncio.gather(*tasks_to_stop)
