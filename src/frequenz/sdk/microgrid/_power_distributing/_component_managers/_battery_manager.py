@@ -165,6 +165,7 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
         self._component_pool_status_tracker = ComponentPoolStatusTracker(
             component_ids=set(self._battery_ids),
             component_status_sender=component_pool_status_sender,
+            # Batteries are not blocked, so this is unused.
             max_blocking_duration=timedelta(seconds=30.0),
             max_data_age=timedelta(seconds=10.0),
             component_status_tracker_type=BatteryStatusTracker,
@@ -295,14 +296,6 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
                 succeeded_components=succeed_batteries,
                 excess_power=distribution.remaining_power,
             )
-
-        await asyncio.gather(
-            *[
-                self._component_pool_status_tracker.update_status(
-                    succeed_batteries, failed_batteries
-                ),
-            ]
-        )
 
         return response
 
@@ -723,7 +716,6 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
         """Parse the results of `set_power` requests.
 
         Check if any task has failed and determine the reason for failure.
-        If any task did not succeed, then the corresponding battery is marked as broken.
 
         Args:
             tasks: A dictionary where the key is the inverter ID and the value is the task that
@@ -753,13 +745,13 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
                 )
             except ApiClientError as err:
                 _logger.warning(
-                    "Set power for battery %s failed, mark it as broken. Error: %s",
+                    "Set power for battery %s failed. Error: %s",
                     battery_ids,
                     err,
                 )
             except asyncio.exceptions.CancelledError:
                 _logger.warning(
-                    "Battery %s didn't respond in %f sec. Mark it as broken.",
+                    "Battery %s didn't respond in %f sec.",
                     battery_ids,
                     request_timeout.total_seconds(),
                 )

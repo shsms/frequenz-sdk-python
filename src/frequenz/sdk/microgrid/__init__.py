@@ -425,9 +425,8 @@ async def initialize(
             `grpc://localhost:1090?ssl=true`.
         resampler_config: Configuration for the resampling actor.
         api_power_request_timeout: Timeout to use when making power requests to
-            the microgrid API.  When requests to components timeout, they will
-            be marked as blocked for a short duration, during which time they
-            will be unavailable from the corresponding component pools.
+            the microgrid API.  Requests that time out are reported as failed
+            in the power distribution results.
         battery_power_manager_algorithm: The power manager algorithm to use for
             batteries.
         component_graph_config: The configuration for building the component

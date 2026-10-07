@@ -9,10 +9,7 @@ sending data that shows that they are working.
 If either of them stops sending data, or if the data shows that they are not working,
 then the battery is considered to be NOT_WORKING.
 
-If a battery and its adjacent inverter are WORKING, but the last request to the battery
-failed, then the battery's status is considered to be UNCERTAIN. In this case, the
-battery is blocked for a short time, and it is not recommended to use it unless it is
-necessary.
+Failed power requests don't change the status of a battery.
 """
 
 import asyncio
@@ -32,7 +29,6 @@ from frequenz.sdk._internal._asyncio import run_forever
 from ....actor._background_service import BackgroundService
 from ... import connection_manager
 from ..._old_component_data import BatteryData, ComponentData, InverterData
-from ._blocking_status import BlockingStatus
 from ._component_status import (
     ComponentStatus,
     ComponentStatusEnum,
@@ -112,13 +108,13 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
         Args:
             component_id: Id of this battery
             status_sender: Channel to send status updates.
-            set_power_result_receiver: Channel to receive results of the requests to the
-                components.
+            set_power_result_receiver: Unused, the status of a battery doesn't depend
+                on its power requests.
             max_data_age: If component stopped sending data, then this is the maximum
                 time when its last message should be considered as valid. After that
                 time, component won't be used until it starts sending data.
-            max_blocking_duration: This value tell what should be the maximum
-                timeout used for blocking failing component.
+            max_blocking_duration: Unused, batteries are not blocked when their
+                power requests fail.
 
         Raises:
             RuntimeError: If battery has no adjacent inverter.
@@ -126,15 +122,10 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
         BackgroundService.__init__(self, name=f"BatteryStatusTracker({component_id})")
         self._max_data_age = max_data_age
         self._status_sender = status_sender
-        self._set_power_result_receiver = set_power_result_receiver
 
         # First battery is considered as not working.
         # Change status after first messages are received.
         self._last_status: ComponentStatusEnum = ComponentStatusEnum.NOT_WORKING
-        self._blocking_status: BlockingStatus = BlockingStatus(
-            min_duration=timedelta(seconds=1.0), max_duration=max_blocking_duration
-        )
-        self._timedelta_zero = timedelta(seconds=0.0)
 
         inverter_id = self._find_adjacent_inverter_id(component_id)
         if inverter_id is None:
@@ -156,11 +147,7 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
     @override
     def start(self) -> None:
         """Start the BatteryStatusTracker instance."""
-        self._tasks.add(
-            asyncio.create_task(
-                self._run(self._status_sender, self._set_power_result_receiver)
-            )
-        )
+        self._tasks.add(asyncio.create_task(self._run(self._status_sender)))
 
     @property
     def battery_id(self) -> ComponentId:
@@ -189,23 +176,6 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
         )
         self._inverter.last_msg_timestamp = inv_data.timestamp
         self._inverter.data_recv_timer.reset()
-
-    def _handle_status_set_power_result(self, result: SetPowerResult) -> None:
-        if self.battery_id in result.succeeded:
-            self._blocking_status.unblock()
-
-        elif (
-            self.battery_id in result.failed
-            and self._last_status != ComponentStatusEnum.NOT_WORKING
-        ):
-            duration = self._blocking_status.block()
-
-            if duration > self._timedelta_zero:
-                _logger.warning(
-                    "battery %d failed last response. block it for %s",
-                    self.battery_id,
-                    duration,
-                )
 
     def _handle_status_battery_timer(self) -> None:
         if self._battery.last_msg_correct:
@@ -237,19 +207,13 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
             return current_status
         return None
 
-    async def _run(
-        self,
-        status_sender: Sender[ComponentStatus],
-        set_power_result_receiver: Receiver[SetPowerResult],
-    ) -> None:
-        """Process data from the components and set_power_result_receiver.
+    async def _run(self, status_sender: Sender[ComponentStatus]) -> None:
+        """Process data from the components.
 
         New status is send only when it change.
 
         Args:
             status_sender: Channel to send status updates.
-            set_power_result_receiver: Channel to receive results of the requests to the
-                components.
         """
         api_client = connection_manager.get().api_client
 
@@ -262,7 +226,6 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
         battery_timer = self._battery.data_recv_timer
         inverter_timer = self._inverter.data_recv_timer
         inverter = inverter_receiver
-        set_power_result = set_power_result_receiver
 
         async def _loop() -> None:
             try:
@@ -271,7 +234,6 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
                     battery_timer,
                     inverter_timer,
                     inverter,
-                    set_power_result,
                 ):
                     new_status = None
 
@@ -280,9 +242,6 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
 
                     elif selected_from(selected, inverter):
                         self._handle_status_inverter(selected.message)
-
-                    elif selected_from(selected, set_power_result):
-                        self._handle_status_set_power_result(selected.message)
 
                     elif selected_from(selected, battery_timer):
                         if (
@@ -327,20 +286,9 @@ class BatteryStatusTracker(ComponentStatusTracker, BackgroundService):
         Returns:
             Battery status.
         """
-        is_msg_correct = (
-            self._battery.last_msg_correct and self._inverter.last_msg_correct
-        )
-
-        if not is_msg_correct:
-            return ComponentStatusEnum.NOT_WORKING
-        if self._last_status == ComponentStatusEnum.NOT_WORKING:
-            # If message just become correct, then try to use it
-            self._blocking_status.unblock()
+        if self._battery.last_msg_correct and self._inverter.last_msg_correct:
             return ComponentStatusEnum.WORKING
-        if self._blocking_status.is_blocked():
-            return ComponentStatusEnum.UNCERTAIN
-
-        return ComponentStatusEnum.WORKING
+        return ComponentStatusEnum.NOT_WORKING
 
     def _is_capacity_present(self, msg: BatteryData) -> bool:
         """Check whether the battery capacity is NaN or not.

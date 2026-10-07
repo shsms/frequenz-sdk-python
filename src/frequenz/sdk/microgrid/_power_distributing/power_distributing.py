@@ -137,9 +137,6 @@ class PowerDistributingActor(Actor):  # pylint: disable=too-many-instance-attrib
 
         A new power request will be ignored if a power request with the same
         components is currently being processed.
-
-        Every component that failed or didn't respond in time will be marked
-        as broken for some time.
         """
         await self._component_manager.start()
 

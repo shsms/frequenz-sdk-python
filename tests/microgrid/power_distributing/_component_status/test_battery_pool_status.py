@@ -113,22 +113,3 @@ class TestBatteryPoolStatus:
             )
             msg = await asyncio.wait_for(battery_status_recv.receive(), timeout=0.2)
             assert msg == batteries_status._current_status
-
-            await batteries_status.update_status(
-                succeeded_components={ComponentId(9)},
-                failed_components={ComponentId(19), ComponentId(29)},
-            )
-            await asyncio.sleep(0.1)
-            assert batteries_status.get_working_components(batteries) == {
-                ComponentId(9)
-            }
-
-            await batteries_status.update_status(
-                succeeded_components={ComponentId(9), ComponentId(19)},
-                failed_components=set(),
-            )
-            await asyncio.sleep(0.1)
-            assert batteries_status.get_working_components(batteries) == {
-                ComponentId(9),
-                ComponentId(19),
-            }
