@@ -772,6 +772,9 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
             if failed:
                 failed_power += distribution[inverter_id]
                 failed_batteries.update(battery_ids)
+                # The command may still have been applied, so the next one must be
+                # sent even if it is 0 W.
+                self._last_set_powers.pop(inverter_id, None)
             else:
                 self._last_set_powers[inverter_id] = distribution[inverter_id]
 
