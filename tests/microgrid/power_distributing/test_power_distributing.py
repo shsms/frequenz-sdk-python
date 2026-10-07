@@ -8,15 +8,20 @@ from __future__ import annotations
 import asyncio
 import math
 from collections import abc
-from typing import TypeVar
-from unittest.mock import MagicMock
+from dataclasses import replace
+from datetime import timedelta
+from typing import TypeVar, cast
+from unittest.mock import AsyncMock, MagicMock
 
-from frequenz.channels import Broadcast
+import pytest
+from frequenz.channels import Broadcast, Receiver, Sender
 from frequenz.client.common.microgrid.components import ComponentId
 from frequenz.client.microgrid.component import Battery, ComponentCategory
 from frequenz.quantities import Power
 from pytest_mock import MockerFixture
 
+from frequenz.sdk.microgrid import connection_manager
+from frequenz.sdk.microgrid._old_component_data import InverterData
 from frequenz.sdk.microgrid._power_distributing import (
     ComponentPoolStatus,
     PowerDistributingActor,
@@ -1218,6 +1223,193 @@ class TestPowerDistributingActor:
                 assert result.excess_power.isclose(Power.from_watts(700.0))
                 assert result.succeeded_power.isclose(Power.from_watts(500.0))
                 assert result.request == request
+
+    def _patch_setpoint_tracking(self, mocker: MockerFixture) -> None:
+        """Shorten the grace period and the tolerance of the setpoint tracking."""
+        module = (
+            "frequenz.sdk.microgrid._power_distributing._component_managers"
+            "._battery_manager"
+        )
+        mocker.patch(f"{module}._SETPOINT_GRACE_PERIOD", timedelta(seconds=0.2))
+        mocker.patch(f"{module}._SETPOINT_MIN_TOLERANCE", Power.from_watts(10))
+
+    def _set_inverter_powers(self, mocks: _Mocks, powers: dict[int, float]) -> None:
+        """Set the active power the given inverters report."""
+        for inverter_id, active_power in powers.items():
+            data = mocks.streamer.get_current_component_data(ComponentId(inverter_id))
+            assert isinstance(data, InverterData)
+            mocks.streamer.update_stream(replace(data, active_power=active_power))
+
+    async def _distribute(
+        self,
+        requests_tx: Sender[Request],
+        result_rx: Receiver[Result],
+        request: Request,
+    ) -> Result:
+        """Send a request to the power distributor and return its result."""
+        await requests_tx.send(request)
+        async with asyncio.timeout(SAFETY_TIMEOUT.total_seconds()):
+            return await result_rx.receive()
+
+    @pytest.mark.parametrize(
+        "battery_9_power_w, expected_batteries",
+        [
+            # Battery 9 follows its setpoint, so only battery 19 is skipped.
+            (500.0, {ComponentId(9)}),
+            # Neither follows, so both are still used.
+            (0.0, {ComponentId(9), ComponentId(19)}),
+        ],
+    )
+    async def test_batteries_not_following_setpoints_are_not_used(
+        self,
+        mocker: MockerFixture,
+        battery_9_power_w: float,
+        expected_batteries: set[ComponentId],
+    ) -> None:
+        """Test that batteries whose inverters don't follow their setpoints are skipped."""
+        self._patch_setpoint_tracking(mocker)
+
+        async with _mocks(mocker, ComponentCategory.BATTERY, grid_meter=False) as mocks:
+            await self.init_component_data(mocks)
+
+            batteries = {ComponentId(9), ComponentId(19)}
+            await self._patch_battery_pool_status(mocks, mocker, batteries)
+
+            # Both batteries get 500 W setpoints. The inverter of battery 19 stays
+            # at 0 W.
+            self._set_inverter_powers(mocks, {8: battery_9_power_w, 18: 0.0})
+
+            requests_channel = Broadcast[Request](name="power_distributor requests")
+            results_channel = Broadcast[Result](name="power_distributor results")
+            battery_status_channel = Broadcast[ComponentPoolStatus](
+                name="battery_status"
+            )
+            async with PowerDistributingActor(
+                Battery,
+                requests_receiver=requests_channel.new_receiver(),
+                results_sender=results_channel.new_sender(),
+                component_pool_status_sender=battery_status_channel.new_sender(),
+                api_power_request_timeout=SAFETY_TIMEOUT,
+            ):
+                await asyncio.sleep(0.1)  # wait for actor to collect data
+
+                request = Request(
+                    power=Power.from_kilowatts(1.0), component_ids=batteries
+                )
+                requests_tx = requests_channel.new_sender()
+                result_rx = results_channel.new_receiver()
+
+                # Both batteries are used during the grace period.
+                for _ in range(2):
+                    result = await self._distribute(requests_tx, result_rx, request)
+                    assert isinstance(result, Success)
+                    assert result.succeeded_components == batteries
+
+                await asyncio.sleep(0.3)
+
+                result = await self._distribute(requests_tx, result_rx, request)
+                assert isinstance(result, Success)
+                assert result.succeeded_components == expected_batteries
+                assert result.succeeded_power.isclose(
+                    Power.from_watts(500.0 * len(expected_batteries))
+                )
+
+    async def test_batteries_get_a_new_grace_period_after_not_working(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Test that batteries coming back from not working get a new grace period."""
+        self._patch_setpoint_tracking(mocker)
+
+        async with _mocks(mocker, ComponentCategory.BATTERY, grid_meter=False) as mocks:
+            await self.init_component_data(mocks)
+
+            batteries = {ComponentId(9), ComponentId(19)}
+            # The status mock returns this set, so changing it changes the status.
+            working = set(batteries)
+            await self._patch_battery_pool_status(mocks, mocker, working)
+
+            # Both batteries get 500 W setpoints. The inverter of battery 19 stays
+            # at 0 W.
+            self._set_inverter_powers(mocks, {8: 500.0, 18: 0.0})
+
+            requests_channel = Broadcast[Request](name="power_distributor requests")
+            results_channel = Broadcast[Result](name="power_distributor results")
+            battery_status_channel = Broadcast[ComponentPoolStatus](
+                name="battery_status"
+            )
+            async with PowerDistributingActor(
+                Battery,
+                requests_receiver=requests_channel.new_receiver(),
+                results_sender=results_channel.new_sender(),
+                component_pool_status_sender=battery_status_channel.new_sender(),
+                api_power_request_timeout=SAFETY_TIMEOUT,
+            ):
+                await asyncio.sleep(0.1)  # wait for actor to collect data
+
+                request = Request(
+                    power=Power.from_kilowatts(1.0), component_ids=batteries
+                )
+                requests_tx = requests_channel.new_sender()
+                result_rx = results_channel.new_receiver()
+
+                # The second request finds battery 19 deviating.
+                for _ in range(2):
+                    result = await self._distribute(requests_tx, result_rx, request)
+                    assert isinstance(result, Success)
+                    assert result.succeeded_components == batteries
+
+                # Battery 19 stops working for longer than the grace period.
+                working.discard(ComponentId(19))
+                await self._distribute(requests_tx, result_rx, request)
+                await asyncio.sleep(0.3)
+                working.add(ComponentId(19))
+
+                result = await self._distribute(requests_tx, result_rx, request)
+                assert isinstance(result, Success)
+                assert result.succeeded_components == batteries
+
+    async def test_zero_power_is_resent_after_not_working(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Test that batteries coming back from not working get 0 W sent again."""
+        async with _mocks(mocker, ComponentCategory.BATTERY, grid_meter=False) as mocks:
+            await self.init_component_data(mocks)
+            set_power = cast(
+                AsyncMock,
+                connection_manager.get().api_client.set_component_power_active,
+            )
+
+            batteries = {ComponentId(9), ComponentId(19)}
+            # The status mock returns this set, so changing it changes the status.
+            working = set(batteries)
+            await self._patch_battery_pool_status(mocks, mocker, working)
+
+            requests_channel = Broadcast[Request](name="power_distributor requests")
+            results_channel = Broadcast[Result](name="power_distributor results")
+            battery_status_channel = Broadcast[ComponentPoolStatus](
+                name="battery_status"
+            )
+            async with PowerDistributingActor(
+                Battery,
+                requests_receiver=requests_channel.new_receiver(),
+                results_sender=results_channel.new_sender(),
+                component_pool_status_sender=battery_status_channel.new_sender(),
+                api_power_request_timeout=SAFETY_TIMEOUT,
+            ):
+                await asyncio.sleep(0.1)  # wait for actor to collect data
+
+                request = Request(power=Power.zero(), component_ids=batteries)
+                requests_tx = requests_channel.new_sender()
+                result_rx = results_channel.new_receiver()
+
+                await self._distribute(requests_tx, result_rx, request)
+                working.discard(ComponentId(19))
+                await self._distribute(requests_tx, result_rx, request)
+                working.add(ComponentId(19))
+
+                set_power.reset_mock()
+                await self._distribute(requests_tx, result_rx, request)
+                assert set_power.call_args_list == [mocker.call(ComponentId(18), 0.0)]
 
     async def test_partial_failure_result(self, mocker: MockerFixture) -> None:
         """Test power results when the microgrid failed to set power for one of the batteries."""

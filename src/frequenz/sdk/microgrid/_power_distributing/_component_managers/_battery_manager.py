@@ -8,7 +8,7 @@ import collections.abc
 import logging
 import math
 import typing
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from frequenz.channels import LatestValueCache, Receiver, Sender
 from frequenz.client.common.microgrid.components import ComponentId
@@ -31,8 +31,24 @@ from .._distribution_algorithm import (
 from ..request import Request
 from ..result import Error, OutOfBounds, PartialFailure, PowerBounds, Result, Success
 from ._component_manager import ComponentManager
+from ._setpoint_tracker import SetpointTracker
 
 _logger = logging.getLogger(__name__)
+
+_SETPOINT_GRACE_PERIOD = timedelta(seconds=10.0)
+"""How long an inverter can deviate from its setpoints before it is not used."""
+
+_SETPOINT_RETRY_INTERVAL = timedelta(seconds=30.0)
+"""How long to wait before retrying an inverter that isn't following its setpoints."""
+
+_SETPOINT_RELATIVE_TOLERANCE = 0.1
+"""The allowed deviation from a setpoint, as a fraction of the setpoint."""
+
+_SETPOINT_MIN_TOLERANCE = Power.from_kilowatts(1.0)
+"""The minimum allowed deviation from a setpoint."""
+
+_SETPOINT_SETTLE_WINDOW = timedelta(seconds=5.0)
+"""How long an inverter can take to reach a setpoint."""
 
 
 def _get_all_from_map(
@@ -186,6 +202,15 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
 
         self._last_set_powers: dict[ComponentId, Power] = {}
         """The last power value set to each battery's inverter."""
+
+        self._setpoint_tracker = SetpointTracker(
+            grace_period=_SETPOINT_GRACE_PERIOD,
+            retry_interval=_SETPOINT_RETRY_INTERVAL,
+            relative_tolerance=_SETPOINT_RELATIVE_TOLERANCE,
+            min_tolerance=_SETPOINT_MIN_TOLERANCE,
+            settle_window=_SETPOINT_SETTLE_WINDOW,
+        )
+        """Tracks whether the inverters follow the power requested from them."""
 
     @override
     def component_ids(self) -> collections.abc.Set[ComponentId]:
@@ -515,12 +540,83 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
 
         return InvBatPair(AggregatedBatteryData(battery_data), inverter_data)
 
+    def _not_following_setpoints(
+        self, batteries: collections.abc.Set[ComponentId]
+    ) -> set[ComponentId]:
+        """Get the batteries whose inverters are not following their setpoints.
+
+        Args:
+            batteries: The batteries to check.
+
+        Returns:
+            The batteries with an inverter that is not following its setpoints, and the
+                batteries sharing inverters with them.
+        """
+        now = datetime.now(tz=timezone.utc)
+        not_following: set[ComponentId] = set()
+        for inverter_id in _get_all_from_map(self._bat_invs_map, batteries):
+            cache = self._inverter_caches[inverter_id]
+            if not cache.has_value():
+                continue
+            data = cache.get()
+            values = (
+                data.active_power,
+                data.active_power_inclusion_lower_bound,
+                data.active_power_inclusion_upper_bound,
+            )
+            if any(math.isnan(value) for value in values):
+                continue
+            if not self._setpoint_tracker.is_following(
+                inverter_id,
+                measured=Power.from_watts(data.active_power),
+                lower=Power.from_watts(data.active_power_inclusion_lower_bound),
+                upper=Power.from_watts(data.active_power_inclusion_upper_bound),
+                now=now,
+            ):
+                not_following |= _get_all_from_map(
+                    self._bat_bats_map, self._inv_bats_map[inverter_id]
+                )
+        return not_following
+
     @override
     def _unreachable_power_formula(
         self, component_ids: collections.abc.Set[ComponentId]
     ) -> str:
         """Return the formula for the active power of the given batteries."""
         return connection_manager.get().component_graph.battery_formula(component_ids)
+
+    def _get_usable_batteries(
+        self, batteries: collections.abc.Set[ComponentId]
+    ) -> set[ComponentId]:
+        """Get the batteries that the power can be distributed to.
+
+        These are the working batteries, without the ones whose inverters don't follow
+        their setpoints, unless no other batteries are left.
+
+        Args:
+            batteries: The requested batteries.
+
+        Returns:
+            The batteries to distribute the power to.
+        """
+        working_batteries = set(
+            self._component_pool_status_tracker.get_working_components(batteries)
+        )
+        # Unknown batteries are reported as errors later.
+        known_batteries = batteries & self._bat_invs_map.keys()
+        known_working = known_batteries & working_batteries
+        # Batteries that don't work start again with new setpoints and a new grace
+        # period once they work again, so their next command must be sent even if
+        # it is 0 W.
+        for inverter_id in _get_all_from_map(
+            self._bat_invs_map, known_batteries
+        ) - _get_all_from_map(self._bat_invs_map, known_working):
+            self._setpoint_tracker.reset(inverter_id)
+            self._last_set_powers.pop(inverter_id, None)
+        return (
+            working_batteries - self._not_following_setpoints(known_working)
+            or working_batteries
+        )
 
     async def _get_components_data(
         self, batteries: collections.abc.Set[ComponentId]
@@ -540,9 +636,7 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
         inverter_ids: collections.abc.Set[ComponentId]
         pairs_data: list[InvBatPair] = []
 
-        working_batteries = self._component_pool_status_tracker.get_working_components(
-            batteries
-        )
+        working_batteries = self._get_usable_batteries(batteries)
 
         await self._subscribe_to_unreachable_power(
             batteries,
@@ -672,6 +766,11 @@ class BatteryManager(ComponentManager):  # pylint: disable=too-many-instance-att
             if power != Power.zero()
             or self._last_set_powers.get(inverter_id) != Power.zero()
         }
+        now = datetime.now(tz=timezone.utc)
+        for inverter_id in tasks:
+            self._setpoint_tracker.set_setpoint(
+                inverter_id, distribution.distribution[inverter_id], now=now
+            )
 
         if not tasks:
             if _logger.isEnabledFor(logging.DEBUG):
